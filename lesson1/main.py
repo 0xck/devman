@@ -8,6 +8,8 @@ from stars import get_stars
 
 def play_the_game(canvas, tic):
 
+    assert tic > 0, AssertionError("Tic interval has to be more that 0")
+
     num_stars = 200
 
     border = ord('|')

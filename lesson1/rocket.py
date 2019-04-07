@@ -6,6 +6,10 @@ from curses_tools import draw_frame, get_frame_size, read_controls
 
 async def handle_rocket(canvas, init_frames, timeout, row, column):
 
+    assert bool(len(init_frames)), AssertionError("Frames can not be empty")
+    assert all(ge(i, 0) for i in (row, column, timeout)), AssertionError(
+        "row, column and timeout have to be non-negative")
+
     height, width = canvas.getmaxyx()
 
     frames = cycle(map(lambda frame: (frame, *get_frame_size(frame)), init_frames))
@@ -54,6 +58,8 @@ def get_rocket_frames():
 
 
 def get_rocket(canvas, timeout):
+
+    assert timeout >= 0, AssertionError("Timeout has to be non-negative")
 
     height, width = canvas.getmaxyx()
 
