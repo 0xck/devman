@@ -1,14 +1,29 @@
 import asyncio
 import curses
 from itertools import chain, cycle
+from operator import ge
 from random import choice, randint, sample
 
 
 def rotator(seq, num):
-    return chain(seq[num:len(seq)], seq[0:num])
+
+    ln = len(seq)
+
+    if not ln or ln == num:
+        return seq
+
+    if ln < num:
+        num = num % ln
+
+    return chain(seq[num:ln], seq[0:num])
 
 
 async def blink(canvas, row, column, init_behavior, init_delay, symbol):
+
+    assert bool(len(init_behavior)), AssertionError("Behavior can not be empty")
+    assert all(ge(i, 0) for i in (row, column, init_delay)), AssertionError(
+        "row, column and delay have to be non-negative")
+    assert symbol.isprintable() , AssertionError("Star symbol has to be printable")
 
     behaviors = cycle(init_behavior)
 
@@ -31,6 +46,8 @@ async def blink(canvas, row, column, init_behavior, init_delay, symbol):
 
 
 def get_stars(canvas, num_starts):
+
+    assert num_starts > 0, AssertionError("Number of stars has to be at least 1")
 
     stars = '+*.:'
 
