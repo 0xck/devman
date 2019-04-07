@@ -1,5 +1,6 @@
 import asyncio
 from itertools import cycle
+from operator import ge
 
 from curses_tools import draw_frame, get_frame_size, read_controls
 
