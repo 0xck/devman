@@ -1,0 +1,2 @@
+class EmptyFrame(Exception):
+    pass
