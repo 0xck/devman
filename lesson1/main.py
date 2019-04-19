@@ -10,10 +10,12 @@ def play_the_game(canvas, tic):
 
     assert tic > 0, AssertionError("Tic interval has to be more that 0")
 
-    num_stars = 200
-
     border = ord('|')
+
     height, width = canvas.getmaxyx()
+
+    # number of starts covers 4% of canvas square
+    num_stars = round(height * width * 0.04)
 
     # stars
     coroutines = list(get_stars(canvas, num_stars))
@@ -32,8 +34,10 @@ def play_the_game(canvas, tic):
 
         for i, coroutine in enumerate(coroutines):
             try:
-                if coroutine is not None:
-                    coroutine.send(None)
+                if coroutine is None:
+                    continue
+
+                coroutine.send(None)
 
             except StopIteration:
                 coroutines[i] = None
@@ -43,5 +47,21 @@ def play_the_game(canvas, tic):
 
 
 if __name__ == '__main__':
-    curses.update_lines_cols()
-    curses.wrapper(play_the_game, 0.1)
+
+    exit_msg = ""
+
+    try:
+        curses.update_lines_cols()
+        curses.wrapper(play_the_game, 0.1)
+
+    except KeyboardInterrupt:
+        exit_msg = "CTRL+C pressed, exiting..."
+
+    except Exception as exc:
+        exit_msg = "Something went wrong, see details below:\n<{}>".format(
+            exc)
+
+    finally:
+
+        if exit_msg:
+            print(exit_msg)
