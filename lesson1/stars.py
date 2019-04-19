@@ -1,43 +1,25 @@
 import asyncio
 import curses
-from itertools import chain, cycle
+from itertools import cycle, islice
 from operator import ge
 from random import choice, randint, sample
 
 
-def rotator(seq, num):
+async def blink(canvas, row, column, behaviors, init_delay, symbol):
 
-    ln = len(seq)
-
-    if not ln or ln == num:
-        return seq
-
-    if ln < num:
-        num = num % ln
-
-    return chain(seq[num:ln], seq[0:num])
-
-
-async def blink(canvas, row, column, init_behavior, init_delay, symbol):
-
-    assert bool(len(init_behavior)), AssertionError("Behavior can not be empty")
     assert all(ge(i, 0) for i in (row, column, init_delay)), AssertionError(
         "row, column and delay have to be non-negative")
-    assert symbol.isprintable() , AssertionError("Star symbol has to be printable")
+    assert symbol.isprintable(), AssertionError("Star symbol has to be printable")
 
-    behaviors = cycle(init_behavior)
-
+    # init star
     _, *star_attr = next(behaviors)
-
     canvas.addstr(row, column, symbol, *star_attr)
 
     # delay for randomizing time of start star's blinking
     for _ in range(init_delay):
         await asyncio.sleep(0)
 
-    while True:
-
-        timeout, *star_attr = next(behaviors)
+    for timeout, *star_attr in behaviors:
 
         canvas.addstr(row, column, symbol, *star_attr)
 
@@ -45,31 +27,50 @@ async def blink(canvas, row, column, init_behavior, init_delay, symbol):
             await asyncio.sleep(0)
 
 
+def behavior(init_actions):
+
+    actions = cycle(init_actions)
+
+    while True:
+        yield next(actions)
+
+
 def get_stars(canvas, num_starts):
 
     assert num_starts > 0, AssertionError("Number of stars has to be at least 1")
 
-    stars = '+*.:'
-
     height, width = canvas.getmaxyx()
 
-    rows = cycle(sample(range(1, height - 1), height - 2))
-    cols = cycle(sample(range(1, width - 1), width - 2))
+    assert num_starts <= round(height * width * 0.33), AssertionError(
+        "Number of stars is too large, it has to be less or equal {}, this covers 33%% of canvas".format(round(height * width * 0.33)))
 
-    behavior = (
+    stars = '+*.:'
+
+    height_border = height - 1
+    width_border = width - 1
+    height_points = height_border - 1
+    width_points = width_border - 1
+    randomized_rows = sample(range(1, height_border), height_points)
+    randomized_cols = sample(range(1, width_border), width_points)
+    rows = cycle(randomized_rows)
+    cols = cycle(randomized_cols)
+
+    actions = (
         (20, curses.A_DIM),
         (3, ),
         (5, curses.A_BOLD),
         (3, ))
 
-    behaviors = (tuple(rotator(behavior, randint(-3, 3))) for _ in range(num_starts))
+    actions_border = len(actions) - 1
 
     return (
         blink(
             canvas,
             next(rows),
             next(cols),
-            next(behaviors),
+            # randomizing star state
+            islice(behavior(actions), randint(0, actions_border), None),
+            # randomizing star blinking
             randint(2, 26),
             choice(stars)
         ) for _ in range(num_starts))
