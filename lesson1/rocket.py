@@ -1,19 +1,21 @@
 import asyncio
 from itertools import cycle
-from operator import ge
 
 from curses_tools import draw_frame, get_frame_size, read_controls
+from exceptions import EmptyFrame
 
 
 async def handle_rocket(canvas, init_frames, timeout, row, column):
 
     assert bool(len(init_frames)), AssertionError("Frames can not be empty")
-    assert all(ge(i, 0) for i in (row, column, timeout)), AssertionError(
+    assert all(i >= 0 for i in (row, column, timeout)), AssertionError(
         "row, column and timeout have to be non-negative")
 
     height, width = canvas.getmaxyx()
 
-    frames = cycle(map(lambda frame: (frame, *get_frame_size(frame)), init_frames))
+    frames_list = ((frame, *get_frame_size(frame)) for frame in init_frames)
+
+    frames = cycle(frames_list)
 
     frame, rocket_height, rocket_width = next(frames)
 
@@ -32,10 +34,10 @@ async def handle_rocket(canvas, init_frames, timeout, row, column):
         draw_frame(canvas, row, column, frame, negative=True)
 
         # keep rocket in borders
-        if row_shift and (0 < (row + row_shift) < (height - rocket_height)):
+        if row_shift and 0 < row + row_shift < height - rocket_height:
             row += row_shift
 
-        if col_shift and (1 < (column + col_shift) < (width - rocket_width)):
+        if col_shift and 1 < column + col_shift < width - rocket_width:
             column += col_shift
 
         frame, rocket_height, rocket_width = next(frames)
@@ -46,14 +48,14 @@ def get_rocket_frames():
 
     raw_frames = ("rocket_frame_1.txt", "rocket_frame_2.txt")
 
-    frames = [""] * len(raw_frames)
+    frames = []
 
-    for i, f in enumerate(raw_frames):
-        with open(f, "r") as fd:
-            frames[i] = (fd.read())
+    for frame_file in raw_frames:
+        with open(frame_file, "r") as file:
+            frames.append(file.read())
 
-    if not all(frames):
-        raise ValueError("Empty frame")
+    if not frames or not all(frames):
+        raise EmptyFrame("Frame can not be empty")
 
     return frames
 
