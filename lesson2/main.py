@@ -4,6 +4,7 @@ import time
 from fire import fire
 from rocket import get_rocket
 from stars import get_stars
+from space_garbage import fill_orbit_with_garbage
 
 
 def play_the_game(canvas, tic):
@@ -23,6 +24,8 @@ def play_the_game(canvas, tic):
     coroutines.append(fire(canvas, height // 2, width // 2))
     # rocket
     coroutines.append(get_rocket(canvas, 1))
+    # garbage
+    coroutines.append(fill_orbit_with_garbage(canvas, coroutines, 10, 20))
 
     # canvas stuff
     canvas.border(border, border)
@@ -33,14 +36,12 @@ def play_the_game(canvas, tic):
     while coroutines:
 
         for i, coroutine in enumerate(coroutines):
-            try:
-                if coroutine is None:
-                    continue
 
+            try:
                 coroutine.send(None)
 
             except StopIteration:
-                coroutines[i] = None
+                coroutines.pop(i)
 
         canvas.refresh()
         time.sleep(tic)
