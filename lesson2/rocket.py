@@ -2,7 +2,7 @@ import asyncio
 from itertools import cycle
 
 from curses_tools import draw_frame, get_frame_size, read_controls
-from exceptions import EmptyFrame
+from frames.tools import get_frames
 
 
 async def handle_rocket(canvas, init_frames, timeout, row, column):
@@ -44,29 +44,13 @@ async def handle_rocket(canvas, init_frames, timeout, row, column):
         draw_frame(canvas, row, column, frame)
 
 
-def get_rocket_frames():
-
-    raw_frames = ("rocket_frame_1.txt", "rocket_frame_2.txt")
-
-    frames = []
-
-    for frame_file in raw_frames:
-        with open(frame_file, "r") as file:
-            frames.append(file.read())
-
-    if not frames or not all(frames):
-        raise EmptyFrame("Frame can not be empty")
-
-    return frames
-
-
 def get_rocket(canvas, timeout):
 
     assert timeout >= 0, AssertionError("Timeout has to be non-negative")
 
     height, width = canvas.getmaxyx()
 
-    rocket_frames = get_rocket_frames()
+    rocket_frames = get_frames("frames/rocket/rocket_frame_[0-9].txt")
 
     return handle_rocket(
         canvas,
