@@ -1,13 +1,13 @@
-import asyncio
 import curses
 from itertools import cycle, islice
-from operator import ge
 from random import choice, randint, sample
+
+from async_tools import sleep_for
 
 
 async def blink(canvas, row, column, behaviors, init_delay, symbol):
 
-    assert all(ge(i, 0) for i in (row, column, init_delay)), AssertionError(
+    assert all(i >= 0 for i in (row, column, init_delay)), AssertionError(
         "row, column and delay have to be non-negative")
     assert symbol.isprintable(), AssertionError("Star symbol has to be printable")
 
@@ -16,15 +16,13 @@ async def blink(canvas, row, column, behaviors, init_delay, symbol):
     canvas.addstr(row, column, symbol, *star_attr)
 
     # delay for randomizing time of start star's blinking
-    for _ in range(init_delay):
-        await asyncio.sleep(0)
+    await sleep_for(init_delay)
 
     for timeout, *star_attr in behaviors:
 
         canvas.addstr(row, column, symbol, *star_attr)
 
-        for _ in range(timeout):
-            await asyncio.sleep(0)
+        await sleep_for(timeout)
 
 
 def behavior(init_actions):
