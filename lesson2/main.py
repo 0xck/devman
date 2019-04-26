@@ -2,12 +2,13 @@ import curses
 import time
 
 from fire import fire
-from rocket import get_rocket
+from obstacles import show_obstacles
+from rocket import get_rocket_handlers
 from stars import get_stars
 from space_garbage import fill_orbit_with_garbage
 
 
-def play_the_game(canvas, tic):
+def play_the_game(canvas, tic, print_obstacles=False):
 
     assert tic > 0, AssertionError("Tic interval has to be more that 0")
 
@@ -18,14 +19,22 @@ def play_the_game(canvas, tic):
     # number of starts covers 4% of canvas square
     num_stars = round(height * width * 0.04)
 
+    # fill coroutines
+    coroutines = []
+    # obstacles list
+    obstacles = set()
+    obstacles_collisions = set()
     # stars
-    coroutines = list(get_stars(canvas, num_stars))
-    # explosion
-    coroutines.append(fire(canvas, height // 2, width // 2))
+    coroutines.extend(list(get_stars(canvas, num_stars)))
     # rocket
-    coroutines.append(get_rocket(canvas, 1))
-    # garbage
-    coroutines.append(fill_orbit_with_garbage(canvas, coroutines, 10, 20))
+    coroutines.extend(get_rocket_handlers(canvas, coroutines, obstacles, obstacles_collisions, 1))
+    # garbage handler
+    coroutines.append(fill_orbit_with_garbage(canvas, coroutines, obstacles, obstacles_collisions, 10, 20))
+    # print garbage borders
+    if print_obstacles:
+        coroutines.append(show_obstacles(canvas, obstacles))
+    # explosion
+    coroutines.append(fire(canvas, obstacles, obstacles_collisions, height // 2, width // 2))
 
     # canvas stuff
     canvas.border(border, border)
@@ -58,9 +67,9 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         exit_msg = "CTRL+C pressed, exiting..."
 
-    except Exception as exc:
-        exit_msg = "Something went wrong, see details below:\n<{}>".format(
-            exc)
+    # except Exception as exc:
+    #     exit_msg = "Something went wrong, see details below:\n<{}>".format(
+    #         exc)
 
     finally:
 
