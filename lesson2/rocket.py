@@ -3,11 +3,11 @@ from itertools import cycle
 
 from async_tools import sleep_for
 from curses_tools import draw_frame, get_frame_size, read_controls
+from explosion import explode
 from fire import fire
 from frames.tools import get_frames
-from physics import update_speed
-from explosion import explode
 from gameover import get_game_over
+from physics import update_speed
 
 
 async def animate_spaceship(init_frames, spaceship_frame, timeout):
@@ -19,7 +19,7 @@ async def animate_spaceship(init_frames, spaceship_frame, timeout):
 
     for frame in cycle(frames):
 
-        if spaceship_frame[0] is None:
+        if None in spaceship_frame:
             return
 
         spaceship_frame[:] = frame[:]

@@ -1,11 +1,12 @@
 import asyncio
-from random import randint, choice
+from random import choice, randint
 
 from async_tools import sleep_for
 from curses_tools import draw_frame, get_frame_size
-from frames.tools import get_frames
-from obstacles import Obstacle
 from explosion import explode
+from frames.tools import get_frames
+from game_scenario import get_garbage_delay_tics
+from obstacles import Obstacle
 
 
 async def fly_garbage(canvas, obstacles, obstacles_collisions,
@@ -62,15 +63,19 @@ async def fly_garbage(canvas, obstacles, obstacles_collisions,
 
 
 async def fill_orbit_with_garbage(canvas, coroutines, obstacles,
-                                  obstacles_collisions, freq_min, freq_max):
+                                  obstacles_collisions, years):
 
-    assert freq_min > 0 and freq_max > 0 and freq_min <= freq_max, AssertionError(
-        "Frequencies has to be more that 0 and min <= max")
+    assert bool(years), AssertionError("Years has to be initiated with int value.")
+    assert years[0] >= 1957, AssertionError("Years has to be at least 1957 and more.")
 
     _, width = canvas.getmaxyx()
     width -= 1
 
     garbage_frames = [(i, *get_frame_size(i)) for i in get_frames("frames/garbage/*.txt")]
+
+    # waiting for garbage epoch
+    while get_garbage_delay_tics(years[0]) is None:
+        await asyncio.sleep(0)
 
     while True:
 
@@ -82,5 +87,5 @@ async def fill_orbit_with_garbage(canvas, coroutines, obstacles,
         coroutines.append(fly_garbage(canvas, obstacles, obstacles_collisions,
                                       column, frame, speed))
 
-        # random waiting before adding new one
-        await sleep_for(randint(freq_min, freq_max))
+        # waiting before adding new one
+        await sleep_for(get_garbage_delay_tics(years[0]))

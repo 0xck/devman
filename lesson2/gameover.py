@@ -1,7 +1,7 @@
 import asyncio
 
-from frames.tools import get_frames
 from curses_tools import draw_frame, get_frame_size
+from frames.tools import get_frames
 
 
 async def game_over(canvas, frame):
