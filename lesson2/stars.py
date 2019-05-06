@@ -25,14 +25,6 @@ async def blink(canvas, row, column, behaviors, init_delay, symbol):
         await sleep_for(timeout)
 
 
-def behavior(init_actions):
-
-    actions = cycle(init_actions)
-
-    while True:
-        yield next(actions)
-
-
 def get_stars(canvas, num_starts):
 
     assert num_starts > 0, AssertionError("Number of stars has to be at least 1")
@@ -67,7 +59,7 @@ def get_stars(canvas, num_starts):
             next(rows),
             next(cols),
             # randomizing star state
-            islice(behavior(actions), randint(0, actions_border), None),
+            islice(cycle(actions), randint(0, actions_border), None),
             # randomizing star blinking
             randint(2, 26),
             choice(stars)
