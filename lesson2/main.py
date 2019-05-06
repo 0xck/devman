@@ -1,4 +1,5 @@
 import curses
+import sys
 import time
 
 from fire import fire
@@ -6,7 +7,7 @@ from obstacles import show_obstacles
 from rocket import get_rocket_handlers
 from space_garbage import fill_orbit_with_garbage
 from stars import get_stars
-from years import show_years
+from years import show_years, years_increment
 
 
 def play_the_game(canvas_init, tic, print_obstacles=False):
@@ -34,11 +35,12 @@ def play_the_game(canvas_init, tic, print_obstacles=False):
 
     # fill coroutines
     # years
+    coroutines.append(years_increment(years))
     coroutines.append(show_years(canvas_year, years))
     # stars
     coroutines.extend(list(get_stars(canvas, num_stars)))
     # rocket
-    coroutines.extend(get_rocket_handlers(canvas, coroutines, obstacles, obstacles_collisions, 1))
+    coroutines.extend(get_rocket_handlers(canvas, coroutines, obstacles, obstacles_collisions, years, 1))
     # garbage handler
     coroutines.append(fill_orbit_with_garbage(canvas, coroutines, obstacles, obstacles_collisions, years))
     # print garbage borders
@@ -73,6 +75,7 @@ def play_the_game(canvas_init, tic, print_obstacles=False):
 if __name__ == '__main__':
 
     exit_msg = ""
+    exit_code = 0
 
     try:
         curses.update_lines_cols()
@@ -84,9 +87,13 @@ if __name__ == '__main__':
     except Exception as exc:
         exit_msg = "Something went wrong, see details below:\n<{}>".format(
             exc)
+        exit_code = 1
 
     finally:
 
         if exit_msg:
-            print()
-            print(exit_msg)
+
+            output = sys.stderr if exit_code else sys.stdout
+            print(exit_msg, file=output)
+
+            sys.exit(exit_code)
