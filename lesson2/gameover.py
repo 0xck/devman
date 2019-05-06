@@ -4,7 +4,7 @@ from curses_tools import draw_frame, get_frame_size
 from frames.tools import get_frames
 
 
-async def game_over(canvas, frame):
+async def show_game_over(canvas, frame):
 
     assert bool(frame), AssertionError("Frame can not be empty")
 
@@ -25,4 +25,4 @@ def get_game_over(canvas):
 
     frame = get_frames("frames/gameover/gameover.txt")
 
-    return game_over(canvas, frame[0])
+    return show_game_over(canvas, frame[0])
