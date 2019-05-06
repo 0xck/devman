@@ -27,11 +27,23 @@ async def animate_spaceship(init_frames, spaceship_frame, timeout):
         await sleep_for(timeout)
 
 
+def calc_location(diff, border):
+
+    if diff < 1:
+        return 1
+
+    if diff > border:
+        return border
+
+    return diff
+
+
 async def run_spaceship(canvas, spaceship_frame, coroutines, obstacles,
-                        obstacles_collisions, timeout, row, column):
+                        obstacles_collisions, years, timeout, row, column):
 
     assert all(i >= 0 for i in (row, column, timeout)), AssertionError(
         "row, column and timeout have to be non-negative")
+    assert bool(years), AssertionError("Years has to be initiated with int value.")
 
     height, width = canvas.getmaxyx()
 
@@ -46,11 +58,6 @@ async def run_spaceship(canvas, spaceship_frame, coroutines, obstacles,
     draw_frame(canvas, row, column, frame)
 
     while True:
-
-        for _ in range(timeout):
-            await asyncio.sleep(0)
-            # against stars that redraw canvas in other coroutines
-            draw_frame(canvas, row, column, frame)
 
         collisions = set(filter(lambda o: o.has_collision(row, column), obstacles))
 
@@ -75,23 +82,24 @@ async def run_spaceship(canvas, spaceship_frame, coroutines, obstacles,
         row_speed, column_speed = update_speed(row_speed, column_speed, row_shift, col_shift)
 
         # keep rocket in borders
-        if 1 < row + row_speed < height - rocket_height - 1:
-            row += row_speed
+        row = calc_location(row + row_speed, height - rocket_height - 1)
+        column = calc_location(column + column_speed, width - rocket_width - 1)
 
-        if 1 < column + column_speed < width - rocket_width - 1:
-            column += column_speed
-
-        if space:
+        # shoot
+        if space and years[0] >= 2020:
             coroutines.append(fire(canvas, obstacles, obstacles_collisions, row - 1, column + 2, -2))
 
         frame, rocket_height, rocket_width = spaceship_frame
         draw_frame(canvas, row, column, frame)
 
+        await asyncio.sleep(0)
+
 
 def get_rocket_handlers(canvas, coroutines, obstacles,
-                        obstacles_collisions, timeout):
+                        obstacles_collisions, years, timeout):
 
     assert timeout >= 0, AssertionError("Timeout has to be non-negative")
+    assert bool(years), AssertionError("Years has to be initiated with int value.")
 
     height, width = canvas.getmaxyx()
 
@@ -107,6 +115,7 @@ def get_rocket_handlers(canvas, coroutines, obstacles,
         coroutines,
         obstacles,
         obstacles_collisions,
+        years,
         timeout,
         height - (2 + max(get_frame_size(i)[0] for i in rocket_frames)),
         width // 2)
