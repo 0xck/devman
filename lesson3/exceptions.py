@@ -1,0 +1,2 @@
+class CompressorIsNotAvailable(Exception):
+    pass
