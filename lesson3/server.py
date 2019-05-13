@@ -5,6 +5,7 @@ from enum import Enum
 from functools import partial
 from glob import iglob
 from shutil import which
+from uuid import uuid4
 
 import aiofiles
 from aiohttp import web
@@ -49,6 +50,10 @@ def is_valid_path(root, path):
     return True
 
 
+def request_id_msg(request_id, message):
+    return f"Request ID {request_id}: <{message}>"
+
+
 async def archivate_files(loop, arch_cmd, chunk_size, headers, files_root, delay, request):
 
     assert chunk_size > 0, AssertionError("Chunk size has to be more than 0.")
@@ -57,11 +62,13 @@ async def archivate_files(loop, arch_cmd, chunk_size, headers, files_root, delay
     assert bool(files_root), AssertionError("File's root path has to be defined.")
 
     archive_hash = request.match_info['archive_hash']
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    log_message = partial(request_id_msg, request_id)
 
-    logging.debug(f"Handling request for: {archive_hash}")
+    logging.debug(log_message(f"Handling request for: {archive_hash}"))
 
     if not is_valid_path(files_root, archive_hash):
-        logging.debug(f"Wrong request: {archive_hash}")
+        logging.debug(log_message(f"Wrong request: {archive_hash}"))
 
         raise web.HTTPBadRequest(
             text=f"Archive <{archive_hash}> is not allowed.")
@@ -69,16 +76,17 @@ async def archivate_files(loop, arch_cmd, chunk_size, headers, files_root, delay
     path = os.path.join(files_root, archive_hash)
 
     if not os.path.exists(path):
-        logging.debug(f"Non-existed request: {archive_hash}")
+        logging.debug(log_message(f"Non-existed request: {archive_hash}"))
 
         raise web.HTTPNotFound(
             text=f"Archive <{archive_hash}> does not exist or was deleted.")
 
-    logging.debug(f"Updating headers with: {headers} and set one chunked")
+    logging.debug(log_message(f"Updating headers with: {headers} and set one chunked"))
 
     response = web.StreamResponse()
     response.headers.extend(headers)
     response.enable_chunked_encoding()
+    response.headers["X-Request-ID"] = request_id
 
     await response.prepare(request)
 
@@ -86,8 +94,8 @@ async def archivate_files(loop, arch_cmd, chunk_size, headers, files_root, delay
 
     cmd = arch_cmd + files
 
-    logging.debug(f"Read data compressor: {arch_cmd} via {chunk_size} bytes chunked")
-    logging.debug(f"Files for compressing: {files}")
+    logging.debug(log_message(f"Read data compressor: {arch_cmd} via {chunk_size} bytes chunks"))
+    logging.debug(log_message(f"Files for compressing: {files}"))
 
     try:
         proc = await asyncio.create_subprocess_shell(cmd, loop=loop,
@@ -95,7 +103,7 @@ async def archivate_files(loop, arch_cmd, chunk_size, headers, files_root, delay
                                             stdin=asyncio.subprocess.DEVNULL,
                                             stderr=asyncio.subprocess.DEVNULL)
     except asyncio.CancelledError:
-        logging.debug("Stopping request handling")
+        logging.debug(log_message("Stopping request handling"))
         raise
 
     except Exception as exc:
@@ -103,67 +111,67 @@ async def archivate_files(loop, arch_cmd, chunk_size, headers, files_root, delay
 
         raise web.HTTPInternalServerError()
 
-    logging.debug(f"Compressor pid: {proc.pid}")
+    logging.debug(log_message(f"Compressor pid: {proc.pid}"))
 
     try:
-        logging.debug("Reading archive chunk")
+        logging.debug(log_message("Reading archive chunk"))
 
         archive_chunk = await proc.stdout.read(chunk_size)
 
-        logging.debug(f"Read {len(archive_chunk)} bytes to archive chunk")
+        logging.debug(log_message(f"Read {len(archive_chunk)} bytes to archive chunk"))
 
         while archive_chunk:
 
-            logging.debug(f"Writing {len(archive_chunk)} bytes archive chunk")
+            logging.debug(log_message(f"Writing {len(archive_chunk)} bytes archive chunk"))
 
             await response.write(archive_chunk)
 
-            logging.debug("Archive chunk was written")
+            logging.debug(log_message("Archive chunk was written"))
 
             if delay:
-                logging.debug("Additional delay")
+                logging.debug(log_message("Additional delay {delay} s"))
                 await asyncio.sleep(delay)
 
-            logging.debug("Reading archive chunk")
+            logging.debug(log_message("Reading archive chunk"))
 
             archive_chunk = await proc.stdout.read(chunk_size)
 
-            logging.debug(f"Read {len(archive_chunk)} bytes to archive chunk")
+            logging.debug(log_message(f"Read {len(archive_chunk)} bytes to archive chunk"))
 
-        logging.debug("Writing was completed")
+        logging.debug(log_message("Writing was completed"))
 
     except asyncio.CancelledError:
-        logging.debug("Stopping request handling")
+        logging.debug(log_message("Stopping request handling"))
 
         response.force_close()
 
-        logging.debug("Request handling was stopped")
+        logging.debug(log_message("Request handling was stopped"))
 
         raise
 
     finally:
         # waiting for last read attempt for gracefull cancel
-        logging.debug("Waiting cancellation archive chunk")
+        logging.debug(log_message("Waiting cancellation archive chunk"))
 
         await proc.stdout.read(chunk_size)
 
-        logging.debug("Getting cancellation archive chunk was done")
+        logging.debug(log_message("Getting cancellation archive chunk was done"))
 
         if proc.returncode is None:
-            logging.debug(f"Compressor pid: {proc.pid} needs to be terminated")
+            logging.debug(log_message(f"Compressor pid: {proc.pid} needs to be terminated"))
 
             proc.terminate()
             await proc.wait()
 
         if proc.returncode is None:
-            logging.debug(f"Compressor pid: {proc.pid} was not terminated and needs to be killed")
+            logging.debug(log_message(f"Compressor pid: {proc.pid} was not terminated and needs to be killed"))
 
             proc.kill()
             await proc.wait()
 
-            logging.debug(f"Compressor pid: {proc.pid} was killed. Return code {proc.returncode}")
+            logging.debug(log_message(f"Compressor pid: {proc.pid} was killed. Return code {proc.returncode}"))
         else:
-            logging.debug(f"Compressor pid: {proc.pid} was terminated. Return code {proc.returncode}")
+            logging.debug(log_message(f"Compressor pid: {proc.pid} was terminated. Return code {proc.returncode}"))
 
 
 async def handle_index_page(request):
