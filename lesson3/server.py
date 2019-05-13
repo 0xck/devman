@@ -49,7 +49,7 @@ def is_valid_path(root, path):
     return True
 
 
-async def archivate_photos(loop, arch_cmd, chunk_size, headers, files_root, delay, request):
+async def archivate_files(loop, arch_cmd, chunk_size, headers, files_root, delay, request):
 
     assert chunk_size > 0, AssertionError("Chunk size has to be more than 0.")
     assert delay >= 0.0, AssertionError("Delay has to be positive.")
@@ -185,7 +185,7 @@ if __name__ == '__main__':
     def non_empty_printable(string):
         if not string or not string.isprintable():
             raise argparse.ArgumentError(
-                "Photos root path has to be printable non-empty string.")
+                "Files root path has to be printable non-empty string.")
         return string
 
     def natural_number(number):
@@ -200,19 +200,25 @@ if __name__ == '__main__':
             raise argparse.ArgumentError("Delay has to be positive.")
         return number
 
-    parser = argparse.ArgumentParser(description='Photos downloader web app')
-    parser.add_argument('-l', '--log', action='store', help='log file path',
-                        default=getenv("PDWA_LOG", None))
-    parser.add_argument('-f', '--loglevel', action='store', help='log facility level', type=int, choices=range(1, 6), metavar="{1-5}",
-                        default=int(getenv("PDWA_LOGLEVEL", 2)))
-    parser.add_argument('-r', '--photosroot', action='store', help='photos root directory', type=non_empty_printable,
-                        default=getenv("PDWA_PHOTOSROOT", "./photos"))
-    parser.add_argument('-d', '--delay', action='store', help='delay during sending file', type=positive_number,
-                        default=float(getenv("PDWA_DELAY", 0)))
-    parser.add_argument('-s', '--chunksize', action='store', help='chunk size', type=natural_number,
-                        default=int(getenv("PDWA_CHUNKSIZE", (32 * 1024))))
-    parser.add_argument('-c', '--compressor', action='store', help='compression type', choices=["zip", "gz"], metavar="{zip, gz}",
-                        default=getenv("PDWA_COMPRESSOR", "zip"))
+    parser = argparse.ArgumentParser(description='Files downloader web app')
+    parser.add_argument('-l', '--log', action='store',
+                        help='log file path, default is console output',
+                        default=getenv("FDWA_LOG", None))
+    parser.add_argument('-f', '--loglevel', action='store', type=int, choices=range(1, 6), metavar="{1-5}",
+                        help='log facility level, default is 2: ERROR',
+                        default=int(getenv("FDWA_LOGLEVEL", 2)))
+    parser.add_argument('-r', '--filesroot', action='store', type=non_empty_printable,
+                        help='files root directory, default is ./files',
+                        default=getenv("FDWA_FILESROOT", "./files"))
+    parser.add_argument('-d', '--delay', action='store', type=positive_number,
+                        help='delay during sending file in seconds, default is 0, no delay. Fractions, e.g. 0.1, may be used for ms.',
+                        default=float(getenv("FDWA_DELAY", 0)))
+    parser.add_argument('-s', '--chunksize', action='store', type=natural_number,
+                        help='chunk size, default is 32768',
+                        default=int(getenv("FDWA_CHUNKSIZE", (32 * 1024))))
+    parser.add_argument('-c', '--compressor', action='store', choices=["zip", "gz"], metavar="{zip, gz}",
+                        help='compression type, default is zip',
+                        default=getenv("FDWA_COMPRESSOR", "zip"))
 
     opt = parser.parse_args()
 
@@ -229,14 +235,14 @@ if __name__ == '__main__':
 
     app = web.Application()
 
-    archivate = partial(archivate_photos, app.loop, compressor.command,
-                        opt.chunksize, headers, os.path.normpath(opt.photosroot),
+    archivate = partial(archivate_files, app.loop, compressor.command,
+                        opt.chunksize, headers, os.path.normpath(opt.filesroot),
                         opt.delay)
 
     app.add_routes([
         web.get('/', handle_index_page),
         web.get('/archive/{archive_hash}/', archivate)])
 
-    logging.info(f"Photos downloader web app is starting with options: {opt}")
+    logging.info(f"Files downloader web app is starting with options: {opt}")
 
     web.run_app(app)
