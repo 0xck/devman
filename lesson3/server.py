@@ -26,19 +26,17 @@ class Compressors(Enum):
 
 
 def get_headers(filename, extension):
-
     assert filename.isprintable() and extension.isprintable(), AssertionError(
         "Filename and extension have to be printable string.")
     assert bool(filename), AssertionError("Filename can not be empty.")
 
     return {
-        'Content-Type': 'application/octet-stream',
-        'Content-Encoding': extension,
-        'Content-Disposition': f'attachment; filename="{filename}.{extension}"'}
+        "Content-Type": "application/octet-stream",
+        "Content-Encoding": extension,
+        "Content-Disposition": f'attachment; filename="{filename}.{extension}"'}
 
 
 def is_valid_path(root, path):
-
     assert root.isprintable() and path.isprintable(), AssertionError(
         "Root path and path have to be printable string.")
     assert bool(path), AssertionError("Path can not be empty.")
@@ -53,20 +51,19 @@ def is_valid_path(root, path):
     return True
 
 
-def get_request_id_msg(request_id, message):
+def request_id_msg(request_id, message):
     return f"Request ID {request_id}: <{message}>"
 
 
-async def archivate_files(loop, arch_cmd, chunk_size, headers, files_root, delay, request):
-
+async def archive_files(loop, arch_cmd, chunk_size, headers, files_root, delay, request):
     assert chunk_size > 0, AssertionError("Chunk size has to be more than 0.")
     assert delay >= 0.0, AssertionError("Delay has to be positive.")
     assert bool(arch_cmd), AssertionError("Compress' command line has to be defined.")
     assert bool(files_root), AssertionError("File's root path has to be defined.")
 
-    archive_hash = request.match_info['archive_hash']
+    archive_hash = request.match_info["archive_hash"]
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
-    log_message = partial(get_request_id_msg, request_id)
+    log_message = partial(request_id_msg, request_id)
 
     logging.debug(log_message(f"Handling request for: {archive_hash}"))
 
@@ -91,16 +88,16 @@ async def archivate_files(loop, arch_cmd, chunk_size, headers, files_root, delay
 
     await response.prepare(request)
 
-    files = ' '.join(iglob(os.path.join(path, "*")))
+    files = " ".join(iglob(os.path.join(path, "*")))
     cmd = arch_cmd + files
     logging.debug(log_message(f"Read data compressor: {arch_cmd} via {chunk_size} bytes chunks"))
     logging.debug(log_message(f"Files for compressing: {files}"))
 
     try:
         proc = await asyncio.create_subprocess_shell(cmd, loop=loop,
-                                            stdout=asyncio.subprocess.PIPE,
-                                            stdin=asyncio.subprocess.DEVNULL,
-                                            stderr=asyncio.subprocess.DEVNULL)
+                                                     stdout=asyncio.subprocess.PIPE,
+                                                     stdin=asyncio.subprocess.DEVNULL,
+                                                     stderr=asyncio.subprocess.DEVNULL)
         logging.debug(log_message(f"Compressor pid: {proc.pid}"))
 
     except asyncio.CancelledError:
@@ -138,7 +135,7 @@ async def archivate_files(loop, arch_cmd, chunk_size, headers, files_root, delay
         raise
 
     finally:
-        # waiting for last read attempt for gracefull cancel
+        # waiting for last read attempt for graceful cancel
         await proc.stdout.read(chunk_size)
 
         if proc.returncode is None:
@@ -156,14 +153,13 @@ async def archivate_files(loop, arch_cmd, chunk_size, headers, files_root, delay
             logging.debug(log_message(f"Compressor pid: {proc.pid} was terminated. Return code {proc.returncode}"))
 
 
-async def handle_index_page(request):
-
+async def handle_index_page(_):
     logging.debug(f"Handling root access")
 
-    async with aiofiles.open('index.html', mode='r') as index_file:
+    async with aiofiles.open("index.html", mode="r") as index_file:
         index_contents = await index_file.read()
 
-    return web.Response(text=index_contents, content_type='text/html')
+    return web.Response(text=index_contents, content_type="text/html")
 
 
 def _non_empty_printable(string):
@@ -206,25 +202,24 @@ def _positive_number(number):
 
 
 def grab_args():
-
-    parser = argparse.ArgumentParser(description='Files downloader web app')
-    parser.add_argument('-l', '--log', action='store',
-                        help='log file path, default is console output',
+    parser = argparse.ArgumentParser(description="Files downloader web app")
+    parser.add_argument("-l", "--log", action="store",
+                        help="log file path, default is console output",
                         default=getenv("FDWA_LOG", None))
-    parser.add_argument('-f', '--loglevel', action='store', type=int, choices=range(1, 6), metavar="{1-5}",
-                        help='log facility level, default is 2: ERROR',
+    parser.add_argument("-f", "--loglevel", action="store", type=int, choices=range(1, 6), metavar="{1-5}",
+                        help="log facility level, default is 2: ERROR",
                         default=int(getenv("FDWA_LOGLEVEL", 2)))
-    parser.add_argument('-r', '--filesroot', action='store', type=_non_empty_printable,
-                        help='files root directory, default is ./files',
+    parser.add_argument("-r", "--filesroot", action="store", type=_non_empty_printable,
+                        help="files root directory, default is ./files",
                         default=getenv("FDWA_FILESROOT", "./files"))
-    parser.add_argument('-d', '--delay', action='store', type=_positive_number,
-                        help='delay during sending file in seconds, default is 0, no delay. Fractions, e.g. 0.1, may be used for ms.',
+    parser.add_argument("-d", "--delay", action="store", type=_positive_number,
+                        help="delay during sending file in seconds, default is 0, no delay. Fractions, e.g. 0.1, may be used for ms.",
                         default=float(getenv("FDWA_DELAY", 0)))
-    parser.add_argument('-s', '--chunksize', action='store', type=_natural_number,
-                        help='chunk size, default is 32768',
+    parser.add_argument("-s", "--chunksize", action="store", type=_natural_number,
+                        help="chunk size, default is 32768",
                         default=int(getenv("FDWA_CHUNKSIZE", (32 * 1024))))
-    parser.add_argument('-c', '--compressor', action='store', choices=["zip", "gz"], metavar="{zip, gz}",
-                        help='compression type, default is zip',
+    parser.add_argument("-c", "--compressor", action="store", choices=["zip", "gz"], metavar="{zip, gz}",
+                        help="compression type, default is zip",
                         default=getenv("FDWA_COMPRESSOR", "zip"))
 
     return parser.parse_args()
@@ -237,26 +232,26 @@ def setup_web_app(options):
         raise CompressorIsNotAvailable("Check if compressor's binaries are in the $PATH.")
 
     headers = get_headers("archive", compressor.extension)
-    app = web.Application()
-    archivate = partial(archivate_files, app.loop, compressor.command,
+    web_app = web.Application()
+    archivate = partial(archive_files, web_app.loop, compressor.command,
                         options.chunksize, headers, os.path.normpath(options.filesroot),
                         options.delay)
 
-    app.add_routes([
-        web.get('/', handle_index_page),
-        web.get('/archive/{archive_hash}/', archivate)])
+    web_app.add_routes([
+        web.get("/", handle_index_page),
+        web.get("/archive/{archive_hash}/", archivate)])
 
-    return app
+    return web_app
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     options = grab_args()
 
     # logging settings
     logging.basicConfig(filename=options.log, level=(options.loglevel * 10),
-                        format='[%(asctime)s] %(levelname)s / %(funcName)s / %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S')
+                        format="[%(asctime)s] %(levelname)s / %(funcName)s / %(message)s",
+                        datefmt="%Y-%m-%d %H:%M:%S")
 
     logging.info(f"Files downloader web app is starting with options: {options}")
 
