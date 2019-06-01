@@ -129,7 +129,7 @@ async def send_messages(messages, token, reader, writer, _):
         for msg in messages:
 
             # send message
-            prepared = msg.strip().replace("\n", "\t").replace("\\n", "\t")
+            prepared = msg.strip().replace("\n", "\t").replace("\\n", "\t").replace("\r", "\t").replace("\\r", "\t")
             if not prepared:
                 logging.warning(f"Empty message from original message {repr(msg)} was skipped")
                 continue
