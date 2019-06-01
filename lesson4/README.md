@@ -70,7 +70,7 @@ If there is previously registered nickname in account storage, by default it is 
 python3 chat_sender.py -s secret.chat.server -p 1235 -S -m "message1" "message2" "message3" -n my_nickname
 ```
 
-Commands will try to connect to given server (option `-s` or `--host`) and port (option `-p` or `--port`) and send (option `-S` or `--send`) given with option `-m` followed by messages separated by space, from account with nickname (option `-n` or `--nickname`) or token (option `-t` or `--token`). If this action completes successfully, then all messages will be sended to chat.
+Commands will try to connect to given server (option `-s` or `--host`) and port (option `-p` or `--port`) and send (option `-S` or `--send`) given with option `-m` (or `--messages`) followed by messages separated by space, from account with nickname (option `-n` or `--nickname`) or token (option `-t` or `--token`). If this action completes successfully, then all messages will be sended to chat.
 
 > None. Caret's return and new line symbols will be swapped with tab.
 
