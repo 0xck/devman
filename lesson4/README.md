@@ -1,6 +1,6 @@
 # Secret chat client
 
-Connect to secret chats easily
+Connect to secret chats easily.
 
 ## Setup and launch
 
@@ -17,7 +17,6 @@ cd lesson4/
 Execute `chat_reader.py` with `python` interpreter, e.g.:
 
 ```shell
-cd lesson4/
 python3 chat_reader.py -s secret.chat.server -p 1234
 ```
 
@@ -29,6 +28,10 @@ Chat reader supports additional settings, that can be given as arguments to exec
 python chat_reader.py -h
 ```
 
+As well environments are supported. They stat with prefix `CHAT_` and end with upper case full argument name. E.g. `CHAT_HISTORY` set history file, `CHAT_PORT` set chat server port, thus full argument name here `--history` for former and `--port` for latter.
+
+> Note. File arguments have more high priority than environments.
+
 ### Sending, register
 
 #### Register new account
@@ -38,7 +41,7 @@ Execute `chat_sender.py` with `python` interpreter, e.g.:
 python3 chat_sender.py -s secret.chat.server -p 1234 -R -n my_nickname
 ```
 
-Command above will try to connect to given server and create new account with *my_nickname* as account nickname and added it in account storage, default is `.accounts.json`. This behavior may be changed with option `-a <path_to_file>`. If this action completes successfully, then new nickname can be used for sending messages.
+Command above will try to connect to given server and create new account (option `-R` or `register`) with *my_nickname* as account nickname and added it in account storage, default is `.accounts.json`. This behavior may be changed with option `-a <path_to_file>`. If this action completes successfully, then new nickname can be used for sending messages.
 
 #### Checking account existence and token
 Execute `chat_sender.py` with `python` interpreter, e.g.:
@@ -47,7 +50,7 @@ Execute `chat_sender.py` with `python` interpreter, e.g.:
 python3 chat_sender.py -C -n my_nickname
 ```
 
-Command above will check if account *my_nickname* was registered and return its token if one exists in accounts storage, by default it is `.accounts.json`. This behavior may be changed with option `-a <path_to_file>`. If this action completes successfully, token will be printed in standard output, otherwise it prints *Unknown account*.
+Command above will check (option `-C` or `--checknick`)  if account *my_nickname* was registered and return its token if one exists in accounts storage, by default it is `.accounts.json`. This behavior may be changed with option `-a <path_to_file>`. If this action completes successfully, token will be printed in standard output, otherwise it prints *Unknown account*.
 
 #### Sending messages
 
@@ -67,7 +70,7 @@ If there is previously registered nickname in account storage, by default it is 
 python3 chat_sender.py -s secret.chat.server -p 1235 -S -m "message1" "message2" "message3" -n my_nickname
 ```
 
-Commands will try to connect to given server (option -s or --host) and port (option -p or --port) and send given with option `-m` messages from account with nickname or token. If this action completes successfully, then all messages will be sended to chat.
+Commands will try to connect to given server (option `-s` or `--host`) and port (option `-p` or `--port`) and send (option `-S` or `--send`) given with option `-m` messages from account with nickname or token. If this action completes successfully, then all messages will be sended to chat.
 
 > None. Caret's return and new line symbols will be swapped with tab.
 
@@ -76,3 +79,7 @@ Chat sender supports additional settings, that can be given as arguments to exec
 ```shell
 python chat_sender.py -h
 ```
+
+As well environments are supported. They stat with prefix `CHAT_` and end with upper case full argument name. E.g. `CHAT_TOKEN` set history file, `CHAT_PORT` set chat server port, thus full argument name here `--token` for former and `--port` for latter.
+
+> Note. File arguments have more high priority than environments.
