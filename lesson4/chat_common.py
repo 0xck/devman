@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import json
 import logging
 import signal
 from datetime import datetime
@@ -7,7 +8,10 @@ from itertools import repeat
 from os import getenv
 from sys import exit
 
-from exit_handler import GracefulExit, graceful_exit, raise_graceful, NonGracefulExit
+from exit_handler import GracefulExit, graceful_exit, raise_graceful
+
+
+engine_log = logging.getLogger("Chat engine")
 
 
 def decode_utf8(data):
@@ -19,7 +23,10 @@ def encode_utf8(data):
 
 
 def get_logged_message(msg):
-    return f'[{datetime.now().strftime("%d.%m.%y %H:%M")}] {msg}'
+
+    time = datetime.now().strftime("%d.%m.%y %H:%M")
+
+    return f'[{time}] {msg}'
 
 
 async def chat_connector(address, port, delay, retry, chat_handler, writer):
@@ -45,25 +52,27 @@ async def chat_connector(address, port, delay, retry, chat_handler, writer):
         try:
             connect_reader, connect_writer = await asyncio.open_connection(address, int(port))
 
-            logging.info(service_messages["established"])
+            engine_log.info(service_messages["established"])
             await writer(get_logged_message(f"{service_messages['established']}\n"))
 
-            await chat_handler(connect_reader, connect_writer, writer)
-            logging.info(service_messages["completed"])
+            result = await chat_handler(connect_reader, connect_writer, writer)
+            engine_log.info(service_messages["completed"])
             await writer(get_logged_message(f"{service_messages['completed']}\n"))
-            return
+            return result
 
         except (ConnectionRefusedError, ConnectionResetError):
 
-            logging.warning(
-                f"Connection error, trying to reconnect. Next attempt{'' if retry is None else f' ({attempt + 1} from {retry})' } in {wait_timeout} seconds.")
+            current_attempt = '' if retry is None else attempt + 1
+            engine_log.warning(
+                f"Connection error, trying to reconnect. Next attempt{current_attempt} in {wait_timeout} seconds.")
+
             await writer(get_logged_message("Connection error, trying to reconnect.\n"))
 
             await asyncio.sleep(wait_timeout)
             wait_timeout = wait_timeout or delay
 
         except asyncio.CancelledError:
-            logging.info(service_messages["terminated"])
+            engine_log.info(service_messages["terminated"])
             await writer(get_logged_message(f"{service_messages['terminated']}\n"))
 
             raise
@@ -73,8 +82,16 @@ async def chat_connector(address, port, delay, retry, chat_handler, writer):
                 connect_writer.close()
 
     else:
-        logging.warning("Retrying limit was reached, exiting...")
+        engine_log.warning("Retrying limit was reached, exiting...")
         await writer(get_logged_message("Retrying limit was reached, exit.\n"))
+
+
+def setup_general_log(file, level):
+
+    logging.basicConfig(filename=file,
+                        format="[%(asctime)s] %(levelname)s / %(funcName)s / %(message)s",
+                        datefmt="%Y-%m-%d %H:%M:%S")
+    engine_log.setLevel(level)
 
 
 def _non_empty_printable(string):
@@ -165,16 +182,16 @@ def run_client(client):
         loop.run_until_complete(client())
 
     except (KeyboardInterrupt, GracefulExit):
-        logging.info("Termination detected, exiting...")
+        engine_log.info("Termination detected, exiting...")
         pending = asyncio.Task.all_tasks()
         graceful_exit(loop, pending)
 
-    except NonGracefulExit:
-        logging.error(f"An error occurred, see logs above, aborting...")
+    except json.JSONDecodeError:
+        engine_log.error(f"An error occurred, see logs above, aborting...")
         exit(2)
 
     except Exception as exc:
-        logging.exception(f"Unknown exception was handled, aborting... {exc}")
+        engine_log.exception(f"Unknown exception was handled, aborting... {exc}")
         exit(1)
 
     finally:
