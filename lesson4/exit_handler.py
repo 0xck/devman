@@ -5,9 +5,6 @@ from contextlib import suppress
 class GracefulExit(Exception):
     pass
 
-class NonGracefulExit(Exception):
-    pass
-
 
 def raise_graceful(*args):
     # raises exception for graceful exiting
