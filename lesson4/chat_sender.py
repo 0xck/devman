@@ -6,13 +6,15 @@ from functools import partial
 from os import getenv
 from os.path import exists
 
-from aiofile import LineReader, AIOFile, Writer
+from aiofile import AIOFile, Writer
 
-from chat_common import chat_connector, get_argparser, _non_empty_printable, run_client, _port, encode_utf8, decode_utf8
-from exit_handler import NonGracefulExit
+from chat_common import chat_connector, get_argparser, _non_empty_printable, run_client, _port, encode_utf8, decode_utf8, setup_general_log
 
 
-async def does_nothing(*args, **kwargs):
+sender_log = logging.getLogger("Chat sender")
+
+
+async def do_nothing(*args, **kwargs):
     return
 
 
@@ -21,22 +23,17 @@ async def get_accounts(storage):
     assert bool(storage) and storage.isprintable(), AssertionError("Storage file name has to be non-empty printable.")
 
     if not exists(storage):
-        logging.info(f"There is not {storage} file.")
+        sender_log.info(f"There is not {storage} file.")
         return {}
-
-    storage_content = []
 
     async with AIOFile(storage, mode="r", encoding="utf-8") as file:
 
-        async for line in LineReader(file):
-            storage_content.append(line)
+        try:
+            return json.loads(await file.read())
 
-    try:
-        return json.loads("".join(storage_content))
-
-    except json.JSONDecodeError:
-        logging.error(f"Invalid JSON format in {storage}")
-        raise NonGracefulExit()
+        except json.JSONDecodeError:
+            sender_log.error(f"Invalid JSON format in {storage}")
+            raise
 
 
 async def register(storage, nickname, reader, writer, _):
@@ -47,20 +44,20 @@ async def register(storage, nickname, reader, writer, _):
     accounts = await get_accounts(storage)
 
     if nickname in accounts:
-        logging.warning(f"Account {nickname} already exists.")
-        return
+        sender_log.warning(f"Account {nickname} already exists.")
+        return accounts[nickname]['account_hash']
 
     # registering new account
     try:
         # read init
         debug_line = await reader.readline()
-        logging.debug(decode_utf8(debug_line))
+        sender_log.debug(decode_utf8(debug_line))
         # skip token input
         writer.write(encode_utf8("\n"))
         await writer.drain()
         # read invite
         debug_line = await reader.readline()
-        logging.debug(decode_utf8(debug_line))
+        sender_log.debug(decode_utf8(debug_line))
         # create new
         writer.write(encode_utf8(f"{nickname}\n"))
         await writer.drain()
@@ -69,11 +66,11 @@ async def register(storage, nickname, reader, writer, _):
         accounts[nickname] = json.loads(decode_utf8(registered))
 
     except json.JSONDecodeError:
-        logging.error(f"Invalid JSON format in account info")
-        raise NonGracefulExit()
+        sender_log.error("Invalid JSON format in account info.")
+        raise
 
     except asyncio.CancelledError:
-        logging.error(
+        sender_log.error(
             f"Account for {nickname} was created, but was not added to {storage}, its token is {accounts[nickname]['account_hash']}")
         raise
 
@@ -83,14 +80,13 @@ async def register(storage, nickname, reader, writer, _):
             await Writer(file)(json.dumps(accounts))
             await file.fsync()
 
-            logging.info(f"Account {nickname} information was written into {storage}")
+            sender_log.info(f"Account {nickname} information was written into {storage}")
 
         except asyncio.CancelledError:
             await file.fsync()
             raise
 
-    # print result to stdout for user handling
-    print(f"Account for {nickname} was successfully created, its token is {accounts[nickname]['account_hash']}")
+    return accounts[nickname]['account_hash']
 
 
 async def send_messages(messages, token, reader, writer, _):
@@ -102,27 +98,22 @@ async def send_messages(messages, token, reader, writer, _):
     try:
         # read init
         debug_line = await reader.readline()
-        logging.debug(decode_utf8(debug_line))
+        sender_log.debug(decode_utf8(debug_line))
         # send auth token
         writer.write(encode_utf8(f"{token}\n"))
         await writer.drain()
         # read auth answer
         debug_line = await reader.readline()
         answer = decode_utf8(debug_line)
-        logging.debug(answer)
+        sender_log.debug(answer)
 
     except asyncio.CancelledError:
-        logging.info("Got terminated, messages were not sent.")
+        sender_log.info("Got terminated, messages were not sent.")
         raise
 
-    try:
-        if json.loads(answer) is None:
-            logging.error(f"Invalid token {token}")
-            return
-
-    except json.JSONDecodeError:
-        logging.error(f"Invalid JSON format in auth answer: {answer}")
-        raise NonGracefulExit()
+    if json.loads(answer) is None:
+        sender_log.error(f"Invalid token {token}")
+        return
 
     try:
         # sending messages
@@ -131,19 +122,19 @@ async def send_messages(messages, token, reader, writer, _):
             # send message
             prepared = msg.strip().replace("\n", "\t").replace("\\n", "\t").replace("\r", "\t").replace("\\r", "\t")
             if not prepared:
-                logging.warning(f"Empty message from original message {repr(msg)} was skipped")
+                sender_log.warning(f"Empty message from original message {repr(msg)} was skipped")
                 continue
 
-            logging.debug(f"Writing prepared {prepared} from original message {msg}")
+            sender_log.debug(f"Writing prepared {prepared} from original message {msg}")
             writer.write(encode_utf8(f"{prepared}\n\n"))
             await writer.drain()
 
             # read answer
             debug_line = await reader.readline()
-            logging.debug(decode_utf8(debug_line))
+            sender_log.debug(decode_utf8(debug_line))
 
     except asyncio.CancelledError:
-        logging.info("Got terminated, all or part of messages might not be sent.")
+        sender_log.info("Got terminated, all or part of messages might not be sent.")
         raise
 
 
@@ -156,8 +147,7 @@ def get_action(action_send, action_register, action_check):
     return (action_send << 2) + (action_register << 1) + action_check
 
 
-async def client_sender(options, chat_connector):
-
+async def send_to_chat(options, chat_connector):
     # Action is defined as result of triple bytes table
     # from given actions: send (S), register (R) and checknick (C),
     # where 0 is False and 1 is True. Thus, table is
@@ -169,14 +159,14 @@ async def client_sender(options, chat_connector):
     # 1 0 0 | 4 or send messages
     # all rest combination does have sense, due actions can not be combined.
     action = get_action(options.send, options.register, options.checknick)
-    logging.debug(f"Action {action} was given from {(options.send, options.register, options.checknick)}")
+    sender_log.debug(f"Action {action} was given from {(options.send, options.register, options.checknick)}")
 
     if not action:
-        logging.error("Action has to be set.")
+        sender_log.error("Action has to be set.")
         return
 
     if action not in (1, 2, 4):
-        logging.error("Actions can not be combined.")
+        sender_log.error("Actions can not be combined.")
         return
 
     # sending message
@@ -193,22 +183,30 @@ async def client_sender(options, chat_connector):
                 token = account["account_hash"]
 
         if token is None:
-            logging.error("Token or known nickname has to be defined for sending message.")
+            sender_log.error("Token or known nickname has to be defined for sending message.")
             return
 
         sender = partial(send_messages, options.messages, token)
-        await chat_connector(sender, does_nothing)
-        return
+
+        try:
+            await chat_connector(sender, do_nothing)
+            return
+
+        except json.JSONDecodeError:
+            sender_log.error(f"Invalid JSON format in auth answer.")
+            raise
 
     # for rest actions nickname has to be defined
     if options.nickname is None:
-        logging.error("Nickname has to be defined.")
+        sender_log.error("Nickname has to be defined.")
         return
 
     # register new account
     if action == 2:
         registrar = partial(register, options.accounts, options.nickname)
-        await chat_connector(registrar, does_nothing)
+
+        account_hash = await chat_connector(registrar, do_nothing)
+        print(f"Account for {options.nickname} was successfully created, its token is {account_hash}")
         return
 
     # check what is nickname token
@@ -229,6 +227,7 @@ def _string_or_none(maybe_string):
 
 
 def get_args():
+
     parser = get_argparser()
 
     parser.add_argument("-a", "--accounts", action="store", type=_non_empty_printable,
@@ -265,13 +264,13 @@ def get_args():
 if __name__ == '__main__':
     options = get_args()
 
-    # logging settings
-    logging.basicConfig(filename=options.log, level=(options.loglevel * 10),
-                        format="[%(asctime)s] %(levelname)s / %(funcName)s / %(message)s",
-                        datefmt="%Y-%m-%d %H:%M:%S")
+    # logger settings
+    log_level = options.loglevel * 10
+    setup_general_log(options.log, log_level)
+    sender_log.setLevel(log_level)
 
     connector = partial(chat_connector, options.host, options.port, options.delay, options.retries)
-    chat_handler = partial(client_sender, options, connector)
+    chat_handler = partial(send_to_chat, options, connector)
 
-    logging.info(f"Chat sender is starting with options: {options}")
+    sender_log.info(f"Chat sender is starting with options: {options}")
     run_client(chat_handler)
